@@ -2,6 +2,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import math
+import simpleaudio as sa  # Для звука
 
 # Инициализация MediaPipe
 mp_face_mesh = mp.solutions.face_mesh
@@ -39,6 +40,17 @@ def find_camera(max_cameras=5):
     print("Не найдено доступных камер!")
     return None
 
+# Функция воспроизведения "пи-пи" звука
+def beep():
+    frequency = 440  # Hz
+    fs = 44100  # Sampling rate
+    seconds = 0.1  # Duration
+    t = np.linspace(0, seconds, int(fs*seconds), False)
+    note = np.sin(frequency * t * 2 * np.pi)
+    audio = (note * 32767).astype(np.int16)
+    play_obj = sa.play_buffer(audio, 1, 2, fs)
+    play_obj.wait_done()
+
 def main():
     cap = find_camera()
     if cap is None:
@@ -66,36 +78,36 @@ def main():
 
             if results.multi_face_landmarks:
                 for face_landmarks in results.multi_face_landmarks:
-                    mp_drawing.draw_landmarks(
-                        image=frame,
-                        landmark_list=face_landmarks,
-                        connections=mp_face_mesh.FACEMESH_TESSELATION,
-                        landmark_drawing_spec=None,
-                        connection_drawing_spec=mp_drawing_styles.get_default_face_mesh_tesselation_style())
-                    mp_drawing.draw_landmarks(
-                        image=frame,
-                        landmark_list=face_landmarks,
-                        connections=mp_face_mesh.FACEMESH_IRISES,
-                        landmark_drawing_spec=None,
-                        connection_drawing_spec=mp_drawing.DrawingSpec(color=(0,0,255), thickness=1))
-
                     landmarks = face_landmarks.landmark
 
                     left_eye_points = [[landmarks[i].x*width, landmarks[i].y*height] for i in [33,160,158,133,153,144]]
                     right_eye_points = [[landmarks[i].x*width, landmarks[i].y*height] for i in [362,385,387,263,373,380]]
                     mouth_points = [[landmarks[i].x*width, landmarks[i].y*height] for i in [61,291,0,17,78,308,84,181]]
 
-                    avg_ear = (eye_aspect_ratio(left_eye_points) + eye_aspect_ratio(right_eye_points)) / 2.0
+                    left_ear = eye_aspect_ratio(left_eye_points)
+                    right_ear = eye_aspect_ratio(right_eye_points)
+                    avg_ear = (left_ear + right_ear) / 2.0
                     tilt_angle = head_tilt(landmarks)
                     mar = mouth_aspect_ratio(mouth_points)
 
+                    left_status = "закрыт" if left_ear < 0.2 else "открыт"
+                    right_status = "закрыт" if right_ear < 0.2 else "открыт"
                     eyes_status = "закрыты" if avg_ear < 0.2 else "открыты"
                     yawn_status = "да" if mar > 0.6 else "нет"
                     tilt_dir = "влево" if tilt_angle > 5 else "вправо" if tilt_angle < -5 else "прямо"
 
-                    print(f"Глаза: {eyes_status} (EAR: {avg_ear:.2f}) | "
-                          f"Наклон головы: {abs(tilt_angle):.1f} градусов {tilt_dir} | "
-                          f"Зевота: {yawn_status} (MAR: {mar:.2f})")
+                    print(f"Левый глаз: {left_status} | Правый глаз: {right_status} | "
+                          f"Наклон головы: {abs(tilt_angle):.1f}° {tilt_dir} | "
+                          f"Зевота: {yawn_status} | EAR: L {left_ear:.2f} R {right_ear:.2f}")
+
+                    # Меняем цвет глаз в зависимости от состояния
+                    eye_color = (0,0,255) if eyes_status=="закрыты" else (0,255,0)
+                    for point in left_eye_points+right_eye_points:
+                        cv2.circle(frame, (int(point[0]), int(point[1])), 2, eye_color, -1)
+
+                    # Звук, если глаза закрыты
+                    if eyes_status=="закрыты":
+                        beep()
 
             cv2.imshow("Face Detection", frame)
             if cv2.waitKey(int(1000 / fps)) & 0xFF == ord('q'):
