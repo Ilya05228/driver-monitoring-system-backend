@@ -2,7 +2,6 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import math
-import simpleaudio as sa  # Для звука
 
 # Инициализация MediaPipe
 mp_face_mesh = mp.solutions.face_mesh
@@ -41,15 +40,6 @@ def find_camera(max_cameras=5):
     return None
 
 # Функция воспроизведения "пи-пи" звука
-def beep():
-    frequency = 440  # Hz
-    fs = 44100  # Sampling rate
-    seconds = 0.1  # Duration
-    t = np.linspace(0, seconds, int(fs*seconds), False)
-    note = np.sin(frequency * t * 2 * np.pi)
-    audio = (note * 32767).astype(np.int16)
-    play_obj = sa.play_buffer(audio, 1, 2, fs)
-    play_obj.wait_done()
 
 def main():
     cap = find_camera()
@@ -90,9 +80,10 @@ def main():
                     tilt_angle = head_tilt(landmarks)
                     mar = mouth_aspect_ratio(mouth_points)
 
-                    left_status = "закрыт" if left_ear < 0.2 else "открыт"
-                    right_status = "закрыт" if right_ear < 0.2 else "открыт"
-                    eyes_status = "закрыты" if avg_ear < 0.2 else "открыты"
+                    EYE_CLOSED_THRESH = 0.2 # увеличиваем для узких глаз
+                    left_status = "закрыт" if left_ear < EYE_CLOSED_THRESH else "открыт"
+                    right_status = "закрыт" if right_ear < EYE_CLOSED_THRESH else "открыт"
+                    eyes_status = "закрыты" if avg_ear < EYE_CLOSED_THRESH else "открыты"
                     yawn_status = "да" if mar > 0.6 else "нет"
                     tilt_dir = "влево" if tilt_angle > 5 else "вправо" if tilt_angle < -5 else "прямо"
 
@@ -106,9 +97,6 @@ def main():
                         cv2.circle(frame, (int(point[0]), int(point[1])), 2, eye_color, -1)
 
                     # Звук, если глаза закрыты
-                    if eyes_status=="закрыты":
-                        beep()
-
             cv2.imshow("Face Detection", frame)
             if cv2.waitKey(int(1000 / fps)) & 0xFF == ord('q'):
                 break
