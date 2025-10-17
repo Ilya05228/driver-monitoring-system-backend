@@ -1,0 +1,24 @@
+[project]
+name = "driver-monitoring-system-backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Ilya05228", email = "iliyaand05@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.119.0",
+    "flask>=3.1.2",
+    "mediapipe>=0.10.21",
+    "numpy>=1.26.4",
+    "opencv-python>=4.11.0.86",
+]
+
+[project.scripts]
+driver-monitoring-system-backend = "driver_monitoring_system_backend:main"
+main = "driver_monitoring_system_backend.main:main"
+
+[build-system]
+requires = ["uv_build>=0.8.15,<0.9.0"]
+build-backend = "uv_build"
