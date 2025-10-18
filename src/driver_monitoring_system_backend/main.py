@@ -77,17 +77,6 @@ class DriverMonitor:
             logger.error(f"Ошибка в eye_aspect_ratio: {e}")
             return 0.0
 
-    def mouth_aspect_ratio(self, mouth_points):
-        try:
-            p2_p8 = np.linalg.norm(np.array(mouth_points[1]) - np.array(mouth_points[7]))
-            p3_p7 = np.linalg.norm(np.array(mouth_points[2]) - np.array(mouth_points[6]))
-            p4_p6 = np.linalg.norm(np.array(mouth_points[3]) - np.array(mouth_points[5]))
-            p1_p5 = np.linalg.norm(np.array(mouth_points[0]) - np.array(mouth_points[4]))
-            return (p2_p8 + p3_p7 + p4_p6) / (3.0 * p1_p5)
-        except Exception as e:
-            logger.error(f"Ошибка в mouth_aspect_ratio: {e}")
-            return 0.0
-
     def get_head_pose(self, landmarks):
         try:
             left_ear = np.array([landmarks[234].x, landmarks[234].y])
