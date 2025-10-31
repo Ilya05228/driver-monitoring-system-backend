@@ -1,175 +1,152 @@
 import math
 import typing
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 import numpy as np
 
-from driver_monitoring_system_backend.outputs import BothEyes, HeadCenter, HeadRotation, Output, SingleEye, XRotation, YRotation, ZRotation
+from driver_monitoring_system_backend.outputs import (
+    BothEyes,
+    HeadCenter,
+    HeadRotation,
+    Output,
+    SingleEye,
+    XRotation,
+    YRotation,
+    ZRotation,
+)
 
 T = typing.TypeVar("T", bound=Output)
 
 
-class BaseEsimilator:
-    """Базовый класс для анализа лица. Обеспечивает доступ к точкам первого лица."""
+class MissingLandmarksError(Exception):
+    """Ошибка, возникающая при отсутствии нужных точек лица."""
+
+
+class BaseEstimator(ABC, typing.Generic[T]):
+    """Базовый класс для всех эстиматоров.
+
+    Определяет единый интерфейс estimate(face_points).
+    """
 
     @abstractmethod
-    def estimate(self, frame: np.ndarray) -> T | None:
-        pass
+    def estimate(self, face_points: dict[int, tuple[int, int]]) -> T | None:
+        """Вычисляет результат анализа."""
 
 
-class XRotationEstimator(BaseEsimilator):
-    """Оценивает угол наклона головы по оси X (x)."""
+class XRotationEstimator(BaseEstimator[XRotation]):
+    """Оценивает наклон головы по оси X (вверх/вниз)."""
 
     _NOSE_TIP = 1
     _CHIN = 152
 
-    def __init__(self):
-        point_indices = [self._NOSE_TIP, self._CHIN]
-        super().__init__(point_indices, refine=True)
+    def estimate(self, face_points: dict[int, tuple[int, int]]) -> XRotation | None:
+        if self._NOSE_TIP not in face_points or self._CHIN not in face_points:
+            raise MissingLandmarksError
 
-    def estimate(self, frame: np.ndarray) -> XRotation | None:
-        points = self._get_face_points(frame)
-        if not points or self._NOSE_TIP not in points or self._CHIN not in points:
-            return None
-
-        nose = points[self._NOSE_TIP]
-        chin = points[self._CHIN]
-        face_vector = (chin[0] - nose[0], chin[1] - nose[1])
-        angle = math.degrees(math.atan2(face_vector[1], face_vector[0]))
-
+        nose = face_points[self._NOSE_TIP]
+        chin = face_points[self._CHIN]
+        dx, dy = chin[0] - nose[0], chin[1] - nose[1]
+        angle = math.degrees(math.atan2(dy, dx))
         return XRotation(angle=angle)
 
 
-class YRotationEstimator(BaseEsimilator):
-    """Оценивает угол поворота головы по оси Y (y)."""
+class YRotationEstimator(BaseEstimator[YRotation]):
+    """Оценивает поворот головы по оси Y (влево/вправо)."""
 
     _NOSE_TIP = 1
     _CHIN = 152
 
-    def __init__(self):
-        point_indices = [self._NOSE_TIP, self._CHIN]
-        super().__init__(point_indices, refine=True)
+    def estimate(self, face_points: dict[int, tuple[int, int]]) -> YRotation | None:
+        if self._NOSE_TIP not in face_points or self._CHIN not in face_points:
+            raise MissingLandmarksError
 
-    def estimate(self, frame: np.ndarray) -> YRotation | None:
-        points = self._get_face_points(frame)
-        if not points or self._NOSE_TIP not in points or self._CHIN not in points:
-            return None
-
-        nose = points[self._NOSE_TIP]
-        chin = points[self._CHIN]
-        face_vector = (chin[0] - nose[0], chin[1] - nose[1])
-        angle = math.degrees(math.atan2(-face_vector[0], face_vector[1]))
-
+        nose = face_points[self._NOSE_TIP]
+        chin = face_points[self._CHIN]
+        dx, dy = chin[0] - nose[0], chin[1] - nose[1]
+        angle = math.degrees(math.atan2(-dx, dy))
         return YRotation(angle=angle)
 
 
-class ZRotationEstimator(BaseEsimilator):
-    """Оценивает угол наклона головы по оси Z (z)."""
+class ZRotationEstimator(BaseEstimator[ZRotation]):
+    """Оценивает наклон головы по оси Z (наклон вбок)."""
 
     _LEFT_EAR = 234
     _RIGHT_EAR = 454
 
-    def __init__(self):
-        point_indices = [self._LEFT_EAR, self._RIGHT_EAR]
-        super().__init__(point_indices, refine=True)
+    def estimate(self, face_points: dict[int, tuple[int, int]]) -> ZRotation | None:
+        if self._LEFT_EAR not in face_points or self._RIGHT_EAR not in face_points:
+            raise MissingLandmarksError
 
-    def estimate(self, frame: np.ndarray) -> ZRotation | None:
-        points = self._get_face_points(frame)
-        if not points or self._LEFT_EAR not in points or self._RIGHT_EAR not in points:
-            return None
-
-        left_ear = points[self._LEFT_EAR]
-        right_ear = points[self._RIGHT_EAR]
-        ear_vector = (right_ear[0] - left_ear[0], right_ear[1] - left_ear[1])
-        angle = math.degrees(math.atan2(ear_vector[1], ear_vector[0]))
-
+        left_ear = face_points[self._LEFT_EAR]
+        right_ear = face_points[self._RIGHT_EAR]
+        dx, dy = right_ear[0] - left_ear[0], right_ear[1] - left_ear[1]
+        angle = math.degrees(math.atan2(dy, dx))
         return ZRotation(angle=angle)
 
 
-class HeadRotationEstimator(BaseEsimilator):
-    """Оценивает все три угла поворота головы, используя отдельные эстиматоры."""
+class HeadRotationEstimator(BaseEstimator[HeadRotation]):
+    """Оценивает все три угла поворота головы (X, Y, Z)."""
 
-    def __init__(self):
-        point_indices = [1, 152, 234, 454]  # Все нужные точки для трех эстиматоров
-        super().__init__(point_indices, refine=True)
+    def __init__(self) -> None:
+        self.x_est = XRotationEstimator()
+        self.y_est = YRotationEstimator()
+        self.z_est = ZRotationEstimator()
 
-        # Создаем эстиматоры для каждой оси
-        self.x_estimator = XRotationEstimator()
-        self.y_estimator = YRotationEstimator()
-        self.z_estimator = ZRotationEstimator()
-
-    def estimate(self, frame: np.ndarray) -> HeadRotation | None:
-        """Оценивает все три угла поворота головы."""
-        x = self.x_estimator.estimate(frame)
-        y = self.y_estimator.estimate(frame)
-        z = self.z_estimator.estimate(frame)
+    def estimate(self, face_points: dict[int, tuple[int, int]]) -> HeadRotation | None:
+        x = self.x_est.estimate(face_points)
+        y = self.y_est.estimate(face_points)
+        z = self.z_est.estimate(face_points)
 
         if x and y and z:
             return HeadRotation(x=x, y=y, z=z)
-        return None
+        raise MissingLandmarksError
 
 
-# ==================== ЭСТИМАТОРЫ ДЛЯ ГЛАЗ ====================
-
-
-class SingleEyeEstimator:
+class SingleEyeEstimator(BaseEstimator[SingleEye]):
     """Оценивает открытость одного глаза."""
 
     def __init__(self, eye_indices: list[int]):
         self.eye_indices = eye_indices
 
-    def calculate_openness(self, eye_points: list[tuple[int, int]]) -> SingleEye:
-        """Вычисляет открытость одного глаза."""
-        if len(eye_points) < 6:
-            return SingleEye(openness=0.0)
+    def estimate(self, face_points: dict[int, tuple[int, int]]) -> SingleEye | None:
+        eye_pts = [face_points[i] for i in self.eye_indices if i in face_points]
+        if len(eye_pts) < 6:
+            raise MissingLandmarksError
 
-        p1, p2, p3, p4, p5, p6 = eye_points[:6]
+        p1, p2, p3, p4, p5, p6 = eye_pts[:6]
         upper = ((p2[0] + p3[0]) / 2, (p2[1] + p3[1]) / 2)
         lower = ((p5[0] + p6[0]) / 2, (p5[1] + p6[1]) / 2)
         vertical = math.hypot(upper[0] - lower[0], upper[1] - lower[1])
         horizontal = math.hypot(p1[0] - p4[0], p1[1] - p4[1])
+
         ratio = vertical / horizontal if horizontal > 0 else 0.0
         openness = (ratio - 0.1) / (0.35 - 0.1)
         openness = max(0.0, min(1.0, openness))
-
         return SingleEye(openness=openness)
 
 
-class BothEyesEstimator(BaseEsimilator):
-    """Оценивает открытость обоих глаз, используя SingleEyeEstimator."""
+class BothEyesEstimator(BaseEstimator[BothEyes]):
+    """Оценивает открытость обоих глаз, используя два SingleEyeEstimator."""
 
-    _LEFT_EYE: typing.ClassVar = [33, 160, 158, 133, 153, 144]
-    _RIGHT_EYE: typing.ClassVar = [362, 385, 387, 263, 373, 380]
+    _LEFT_EYE: typing.ClassVar[list[int]] = [33, 160, 158, 133, 153, 144]
+    _RIGHT_EYE: typing.ClassVar[list[int]] = [362, 385, 387, 263, 373, 380]
 
-    def __init__(self):
-        point_indices = list(set(self._LEFT_EYE + self._RIGHT_EYE))
-        super().__init__(point_indices, refine=True)
+    def __init__(self) -> None:
+        self.left_eye_est = SingleEyeEstimator(self._LEFT_EYE)
+        self.right_eye_est = SingleEyeEstimator(self._RIGHT_EYE)
 
-        # Создаем эстиматоры для каждого глаза
-        self.left_eye_estimator = SingleEyeEstimator(self._LEFT_EYE)
-        self.right_eye_estimator = SingleEyeEstimator(self._RIGHT_EYE)
-
-    def estimate(self, frame: np.ndarray) -> BothEyes | None:
-        points = self._get_face_points(frame)
-        if not points:
-            return None
-
-        left_pts = [points[i] for i in self._LEFT_EYE if i in points]
-        right_pts = [points[i] for i in self._RIGHT_EYE if i in points]
-
-        if len(left_pts) < 6 or len(right_pts) < 6:
-            return None
-
-        left_eye = self.left_eye_estimator.calculate_openness(left_pts)
-        right_eye = self.right_eye_estimator.calculate_openness(right_pts)
-
-        return BothEyes(left_eye=left_eye, right_eye=right_eye)
+    def estimate(self, face_points: dict[int, tuple[int, int]]) -> BothEyes | None:
+        left = self.left_eye_est.estimate(face_points)
+        right = self.right_eye_est.estimate(face_points)
+        if not left or not right:
+            raise MissingLandmarksError
+        return BothEyes(left_eye=left, right_eye=right)
 
 
-class HeadCenterEstimator(BaseEsimilator):
-    """Определяет центр головы по овалу лица."""
+class HeadCenterEstimator(BaseEstimator[HeadCenter]):
+    """Определяет координты центра головы по овалу лица."""
 
-    _FACE_OVAL: typing.ClassVar = [
+    _FACE_OVAL: typing.ClassVar[list[int]] = [
         10,
         338,
         297,
@@ -208,18 +185,9 @@ class HeadCenterEstimator(BaseEsimilator):
         109,
     ]
 
-    def __init__(self):
-        super().__init__(self._FACE_OVAL, refine=True)
-
-    def estimate(self, frame: np.ndarray) -> HeadCenter | None:
-        points = self._get_face_points(frame)
-        if not points:
-            return None
-
-        xs = [points[i][0] for i in self._FACE_OVAL if i in points]
-        ys = [points[i][1] for i in self._FACE_OVAL if i in points]
-
-        center_x = int(np.mean(xs))
-        center_y = int(np.mean(ys))
-
-        return HeadCenter(x=center_x, y=center_y)
+    def estimate(self, face_points: dict[int, tuple[int, int]]) -> HeadCenter | None:
+        xs = [face_points[i][0] for i in self._FACE_OVAL if i in face_points]
+        ys = [face_points[i][1] for i in self._FACE_OVAL if i in face_points]
+        if not xs or not ys:
+            raise MissingLandmarksError
+        return HeadCenter(x=int(np.mean(xs)), y=int(np.mean(ys)))
