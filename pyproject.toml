@@ -38,6 +38,7 @@ select = ["ALL", "D", "EM"]
 # # exclude = ["*.ipynb"]
 
 ignore = [
+
     "D101",
     "D100",
     "D103",

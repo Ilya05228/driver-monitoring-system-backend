@@ -1,9 +1,86 @@
+import math
+import typing
+
 import cv2
 import mediapipe as mp
 import numpy as np
 
 
+class HeadRotation:
+    """Хранит углы поворота головы относительно осей кадра."""
+
+    _rotation_x: float
+    _rotation_y: float
+    _rotation_z: float
+
+    def __init__(self, rotation_x: float, rotation_y: float, rotation_z: float):
+        self._rotation_x = round(rotation_x, 2)
+        self._rotation_y = round(rotation_y, 2)
+        self._rotation_z = round(rotation_z, 2)
+
+    @property
+    def rotation_x(self) -> float:
+        return self._rotation_x
+
+    @property
+    def rotation_y(self) -> float:
+        return self._rotation_y
+
+    @property
+    def rotation_z(self) -> float:
+        return self._rotation_z
+
+    def __repr__(self) -> str:
+        return f"HeadRotation(rotation_x={self._rotation_x}, rotation_y={self._rotation_y}, rotation_z={self._rotation_z})"
+
+
+class HeadCenter:
+    """Хранит координаты центра головы в кадре."""
+
+    _x: int
+    _y: int
+
+    def __init__(self, x: int, y: int):
+        self._x = x
+        self._y = y
+
+    @property
+    def x(self) -> int:
+        return self._x
+
+    @property
+    def y(self) -> int:
+        return self._y
+
+    def __repr__(self) -> str:
+        return f"HeadCenter(x={self._x}, y={self._y})"
+
+
+class EyesData:
+    """Хранит степень открытости глаз."""
+
+    _left_eye_openness: float
+    _right_eye_openness: float
+
+    def __init__(self, left_eye_openness: float, right_eye_openness: float):
+        self._left_eye_openness = round(left_eye_openness, 2)
+        self._right_eye_openness = round(right_eye_openness, 2)
+
+    @property
+    def left_eye_openness(self) -> float:
+        return self._left_eye_openness
+
+    @property
+    def right_eye_openness(self) -> float:
+        return self._right_eye_openness
+
+    def __repr__(self) -> str:
+        return f"EyeData(left_eye_openness={self._left_eye_openness}, right_eye_openness={self._right_eye_openness})"
+
+
 class FaceLandmarkDetector:
+    """Детектор ключевых точек лица с использованием MediaPipe Face Mesh."""
+
     def __init__(
         self,
         point_indices: list[int],
@@ -14,6 +91,7 @@ class FaceLandmarkDetector:
         min_det_conf: float = 0.6,
         min_track_conf: float = 0.6,
     ) -> None:
+        """Инициализирует детектор с заданными параметрами и списком индексов точек."""
         self.face_mesh = face_mesh or mp.solutions.face_mesh.FaceMesh(
             static_image_mode=static_mode,
             max_num_faces=max_faces,
@@ -21,10 +99,10 @@ class FaceLandmarkDetector:
             min_detection_confidence=min_det_conf,
             min_tracking_confidence=min_track_conf,
         )
-
         self.point_indices = point_indices
 
     def process_frame(self, frame: np.ndarray) -> list[dict[int, tuple[int, int]]] | None:
+        """Обрабатывает кадр и возвращает список словарей с координатами точек для каждого лица. Рисует точки на кадре."""
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.face_mesh.process(rgb)
         if not results.multi_face_landmarks:
@@ -42,20 +120,242 @@ class FaceLandmarkDetector:
         return all_faces
 
 
-class SleepTrackerGUI:
-    pass
+class FaceAnalyzer:
+    """Базовый класс для анализа лица. Обеспечивает доступ к точкам первого лица."""
+
+    def __init__(
+        self,
+        point_indices: list[int],
+        static_mode: bool = False,
+        max_faces: int = 3,
+        refine: bool = True,
+        min_det_conf: float = 0.6,
+        min_track_conf: float = 0.6,
+    ):
+        """Инициализирует детектор с нужными точками."""
+        self.detector = FaceLandmarkDetector(
+            point_indices=point_indices,
+            static_mode=static_mode,
+            max_faces=max_faces,
+            refine=refine,
+            min_det_conf=min_det_conf,
+            min_track_conf=min_track_conf,
+        )
+
+    def _get_face_points(self, frame: np.ndarray) -> dict[int, tuple[int, int]] | None:
+        """Возвращает точки первого обнаруженного лица или None."""
+        results = self.detector.process_frame(frame)
+        if results and len(results) > 0:
+            return results[0]
+        return None
+
+    @staticmethod
+    def _euclidean_dist(p1: tuple[int, int], p2: tuple[int, int]) -> float:
+        """Вычисляет евклидово расстояние между двумя точками."""
+        return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
 
 
-class SleepTracker:
-    def start(self) -> None:
-        """Запуск трекера"""
+class HeadRotationEstimator(FaceAnalyzer):
+    """Оценивает углы поворота головы (pitch, yaw, roll)."""
+
+    _NOSE_TIP = 1
+    _CHIN = 152
+    _LEFT_EAR = 234
+    _RIGHT_EAR = 454
+    _LEFT_EYE_OUTER = 33
+    _RIGHT_EYE_OUTER = 263
+
+    def __init__(self):
+        """Инициализирует с набором точек, необходимых для оценки поворота."""
+        point_indices = [self._NOSE_TIP, self._CHIN, self._LEFT_EAR, self._RIGHT_EAR, self._LEFT_EYE_OUTER, self._RIGHT_EYE_OUTER]
+        super().__init__(point_indices, refine=True)
+
+    def estimate(self, frame: np.ndarray) -> HeadRotation | None:
+        """Оценивает и возвращает объект HeadRotation или None при отсутствии лица."""
+        points = self._get_face_points(frame)
+        if not points:
+            return None
+
+        nose = points[self._NOSE_TIP]
+        chin = points[self._CHIN]
+        left_ear = points[self._LEFT_EAR]
+        right_ear = points[self._RIGHT_EAR]
+
+        face_vector = (chin[0] - nose[0], chin[1] - nose[1])
+        ear_vector = (right_ear[0] - left_ear[0], right_ear[1] - left_ear[1])
+
+        rotation_x = math.degrees(math.atan2(face_vector[1], face_vector[0]))
+        rotation_y = math.degrees(math.atan2(-face_vector[0], face_vector[1]))
+        rotation_z = math.degrees(math.atan2(ear_vector[1], ear_vector[0]))
+
+        return HeadRotation(rotation_x=rotation_x, rotation_y=rotation_y, rotation_z=rotation_z)
+
+
+class HeadCenterEstimator(FaceAnalyzer):
+    """Определяет центр головы по овалу лица."""
+
+    _FACE_OVAL: typing.ClassVar = [
+        10,
+        338,
+        297,
+        332,
+        284,
+        251,
+        389,
+        356,
+        454,
+        323,
+        361,
+        288,
+        397,
+        365,
+        379,
+        378,
+        400,
+        377,
+        152,
+        148,
+        176,
+        149,
+        150,
+        136,
+        172,
+        58,
+        132,
+        93,
+        234,
+        127,
+        162,
+        21,
+        54,
+        103,
+        67,
+        109,
+    ]
+
+    def __init__(self):
+        """Инициализирует с точками овала лица."""
+        super().__init__(self._FACE_OVAL, refine=True)
+
+    def estimate(self, frame: np.ndarray) -> HeadCenter | None:
+        """Возвращает центр головы как среднее по точкам овала или None."""
+        points = self._get_face_points(frame)
+        if not points:
+            return None
+
+        xs = [points[i][0] for i in self._FACE_OVAL if i in points]
+        ys = [points[i][1] for i in self._FACE_OVAL if i in points]
+
+        center_x = int(np.mean(xs))
+        center_y = int(np.mean(ys))
+
+        return HeadCenter(x=center_x, y=center_y)
+
+
+class EyeOpennessEstimator(FaceAnalyzer):
+    """Оценивает открытость глаз как отношение высоты к ширине (0.0 — закрыт, 1.0 — открыт)."""
+
+    _LEFT_EYE: typing.ClassVar = [33, 160, 158, 133, 153, 144]
+    _RIGHT_EYE: typing.ClassVar = [362, 385, 387, 263, 373, 380]
+
+    def __init__(self):
+        point_indices = list(set(self._LEFT_EYE + self._RIGHT_EYE))
+        super().__init__(point_indices, refine=True)
+
+    def _calculate_eye_openness(self, eye_points: list[tuple[int, int]]) -> float:
+        """Вычисляет отношение высоты глаза к ширине (как в твоём рабочем коде)."""
+        p1, p2, p3, p4, p5, p6 = eye_points[:6]  # Берём первые 6 точек
+        upper = ((p2[0] + p3[0]) / 2, (p2[1] + p3[1]) / 2)
+        lower = ((p5[0] + p6[0]) / 2, (p5[1] + p6[1]) / 2)
+        vertical = math.hypot(upper[0] - lower[0], upper[1] - lower[1])
+        horizontal = math.hypot(p1[0] - p4[0], p1[1] - p4[1])
+        ratio = vertical / horizontal if horizontal > 0 else 0.0
+        openness = (ratio - 0.1) / (0.35 - 0.1)
+        return max(0.0, min(1.0, openness))
+
+    def estimate(self, frame: np.ndarray) -> EyeData | None:
+        points = self._get_face_points(frame)
+        if not points:
+            return None
+
+        left_pts = [points[i] for i in self._LEFT_EYE if i in points]
+        right_pts = [points[i] for i in self._RIGHT_EYE if i in points]
+
+        if len(left_pts) < 6 or len(right_pts) < 6:
+            return None
+
+        left_open = self._calculate_eye_openness(left_pts)
+        right_open = self._calculate_eye_openness(right_pts)
+
+        return EyeData(left_eye_openness=left_open, right_eye_openness=right_open)
 
 
 def main() -> None:
-    s_t = SleepTracker()
-    s_t.start()
+    """Запускает веб-камеру и выводит в консоль оценку головы и глаз в реальном времени."""
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("Ошибка: не удалось открыть камеру")
+        return
+
+    rotation_estimator = HeadRotationEstimator()
+    center_estimator = HeadCenterEstimator()
+    eye_estimator = EyeOpennessEstimator()
+
+    print("Запуск... Нажмите 'q' для выхода")
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Не удалось получить кадр")
+            break
+
+        rotation = rotation_estimator.estimate(frame)
+        center = center_estimator.estimate(frame)
+        eyes = eye_estimator.estimate(frame)
+
+        if rotation:
+            print(
+                f"rotation_x={round(rotation.rotation_x, -0)}, "
+                f"rotation_y={round(rotation.rotation_y, -0)}, "
+                f"rotation_z={round(rotation.rotation_z, -0)}"
+            )
+
+        else:
+            print("Поворот головы не определен")
+
+        if center:
+            print(f"Центр головы: x={center.x}, y={center.y}")
+            cv2.circle(frame, (center.x, center.y), 8, (0, 0, 255), -1)
+        else:
+            print("Центр головы не определен")
+
+        if eyes:
+            print(f"Открытость глаз: левый={eyes.left_eye_openness:.2f}, правый={eyes.right_eye_openness:.2f}")
+        else:
+            print("Открытость глаз не определена")
+
+        cv2.imshow("Face Analysis", frame)
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
 
 
+# class SleepTrackerGUI:
+#     pass
+
+
+# class SleepTracker:
+#     def start(self) -> None:
+#         """Запуск трекера"""
+
+
+# def main() -> None:
+#     s_t = SleepTracker()
+#     s_t.start()
+
+# ======================
 # # --- Логирование ---
 # logging.basicConfig(
 #     level=logging.INFO,
