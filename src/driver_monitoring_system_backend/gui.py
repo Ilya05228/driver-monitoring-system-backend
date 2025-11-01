@@ -1,7 +1,8 @@
 # ruff: noqa
 import collections
 import sys
-
+import signal
+import pygame
 import cv2
 import numpy as np
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
@@ -14,8 +15,6 @@ from driver_monitoring_system_backend.face_detector import FaceLandmarkDetector
 
 
 class VideoWorker(QObject):
-    """Обрабатывает видео и анализ в отдельном потоке (через QTimer)"""
-
     frame_ready = Signal(np.ndarray)
     status_updated = Signal(str, bool)
     params_updated = Signal(float, float, float, float, float)
@@ -40,7 +39,6 @@ class VideoWorker(QObject):
         self.angle_buf = collections.deque(maxlen=self.buf_len)
         self.x_buf = collections.deque(maxlen=self.buf_len)
         self.y_buf = collections.deque(maxlen=self.buf_len)
-
         self.FACE_OVAL = [
             10,
             338,
@@ -85,7 +83,7 @@ class VideoWorker(QObject):
     def start(self):
         self.timer = QTimer()
         self.timer.timeout.connect(self.process_frame)
-        self.timer.start(30)  # ~33 FPS
+        self.timer.start(30)
 
     def process_frame(self):
         ret, frame = self.cap.read()
@@ -118,7 +116,6 @@ class VideoWorker(QObject):
             self.frame_ready.emit(disp)
             return
 
-        # Буферы
         self.left_buf.append(eyes.left_eye.openness)
         self.right_buf.append(eyes.right_eye.openness)
         self.angle_buf.append(x_rot.angle)
@@ -131,11 +128,9 @@ class VideoWorker(QObject):
         x_avg = sum(self.x_buf) / len(self.x_buf)
         y_avg = sum(self.y_buf) / len(self.y_buf)
 
-        # Анализ сна
         self.analyzer.update(left_avg, right_avg, angle_avg, x_avg, y_avg)
         is_sleeping = self.analyzer.is_sleep()
 
-        # Отрисовка
         face_pts = [pts[i] for i in self.FACE_OVAL if i in pts]
         if len(face_pts) > 1:
             for i in range(len(face_pts)):
@@ -149,7 +144,6 @@ class VideoWorker(QObject):
 
         cv2.circle(disp, (center.x, center.y), 6, (0, 255, 0), -1)
 
-        # Сигналы
         self.frame_ready.emit(disp)
         self.status_updated.emit("СПИТ" if is_sleeping else "НЕ СПИТ", is_sleeping)
         self.params_updated.emit(left_avg, right_avg, angle_avg, x_avg, y_avg)
@@ -159,21 +153,27 @@ class VideoWorker(QObject):
 
 
 class MainWindow(QMainWindow):
-    """Главное окно GUI"""
-
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Мониторинг водителя")
         self.resize(1000, 700)
 
-        # Центральный виджет
+        self.is_sleeping = False
+
+        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
+        try:
+            self.beep_sound = pygame.mixer.Sound("files/beep_1.mp3")
+            self.beep_sound.set_volume(0.7)
+        except Exception as e:
+            print(f"Ошибка загрузки звука: {e}")
+            self.beep_sound = None
+
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(12)
 
-        # === Статус ===
         self.status_label = QLabel("НЕ СПИТ")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setMinimumHeight(80)
@@ -211,14 +211,12 @@ class MainWindow(QMainWindow):
             params_layout.addWidget(lbl)
         layout.addWidget(self.params_frame)
 
-        # === Видео ===
         self.video_label = QLabel()
         self.video_label.setMinimumSize(640, 480)
         self.video_label.setStyleSheet("background-color: #0d0d0d; border-radius: 10px;")
         self.video_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.video_label, 1)
 
-        # === Worker ===
         self.worker = VideoWorker()
         self.worker.frame_ready.connect(self.update_frame)
         self.worker.status_updated.connect(self.update_status)
@@ -243,6 +241,15 @@ class MainWindow(QMainWindow):
             padding: 16px;
         """)
 
+        if is_sleeping and not self.is_sleeping:
+            if self.beep_sound:
+                self.beep_sound.play(loops=-1)
+        elif not is_sleeping and self.is_sleeping:
+            if self.beep_sound:
+                self.beep_sound.stop()
+
+        self.is_sleeping = is_sleeping
+
     def update_params(self, left, right, angle, x, y):
         self.labels["Левый глаз"].setText(f"Левый глаз: {left:.2f}")
         self.labels["Правый глаз"].setText(f"Правый глаз: {right:.2f}")
@@ -252,10 +259,12 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self.worker.stop()
+        if self.beep_sound:
+            self.beep_sound.stop()
+        pygame.mixer.quit()
         event.accept()
 
 
-# === Тёмная тема ===
 def apply_dark_theme(app: QApplication):
     app.setStyleSheet("""
         QMainWindow, QWidget {
@@ -270,12 +279,17 @@ def apply_dark_theme(app: QApplication):
     """)
 
 
-# === Запуск GUI ===
 def run_gui():
     app = QApplication(sys.argv)
     apply_dark_theme(app)
 
     window = MainWindow()
     window.show()
+
+    def sigint_handler(*args):
+        QApplication.quit()
+
+    signal.signal(signal.SIGINT, sigint_handler)
+    signal.signal(signal.SIGTERM, sigint_handler)
 
     sys.exit(app.exec())
