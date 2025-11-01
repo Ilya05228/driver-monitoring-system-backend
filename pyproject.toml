@@ -13,6 +13,9 @@ dependencies = [
     "opencv-python>=4.11.0.86",
     "pygame>=2.6.1",
     "pyside6>=6.10.0",
+]
+[dependency-groups]
+dev = [
     "ruff>=0.14.3",
 ]
 
@@ -25,17 +28,12 @@ requires = ["uv_build>=0.8.15,<0.9.0"]
 build-backend = "uv_build"
 
 [tool.ruff]
-# no_extra_newlines = true
 line-length = 150
 fix = true
-# [tool.ruff.lint.pydocstyle]
-# convention = "google"  # Accepts: "google", "numpy", or "pep257".
 
 
 [tool.ruff.lint]
 select = ["ALL", "D", "EM"]
-# extend-safe-fixes = ["C408","EM"]
-# # exclude = ["*.ipynb"]
 
 ignore = [
 
@@ -75,17 +73,15 @@ ignore = [
     "E741",
     "T201",
     "D105",
-] # Игнорировать ничего не будемselect = ["ALL"]  # Включенные правила
-fixable = ["ALL"] # Разрешаем исправлять все ошибки
+] 
+fixable = ["ALL"] 
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
-# ignore-overlong-task-comments = true
-# [tool.ruff.lint.pycodestyle]
 
 [tool.ruff.format]
-quote-style = "double"            # Использовать двойные кавычки
-indent-style = "space"            # Пробелы вместо табов
-line-ending = "lf"                # Перенос строк в формате LF
+quote-style = "double"          
+indent-style = "space"            
+line-ending = "lf"                
 skip-magic-trailing-comma = false
 exclude = ["*.ipynb"]
