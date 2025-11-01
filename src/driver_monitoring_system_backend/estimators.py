@@ -31,21 +31,33 @@ class BaseEstimator(ABC, typing.Generic[T]):
         """Вычисляет результат анализа."""
 
 
-class XRotationEstimator(BaseEstimator[XRotation]):
-    """Оценивает наклон головы по оси X (вверх/вниз)."""
+class XRotationEstimator(BaseEstimator):
+    """Оценивает наклон головы по оси X (вверх/вниз) через средние центры глаз."""
 
-    _NOSE_TIP = 1
-    _CHIN = 152
+    _LEFT_EYE_INDICES: typing.ClassVar = [33, 160, 158, 133, 153, 144]
+    _RIGHT_EYE_INDICES: typing.ClassVar = [362, 385, 387, 263, 373, 380]
+
+    def _center(self, points: list[tuple[int, int]]) -> tuple[float, float]:
+        if not points:
+            raise MissingLandmarksError
+        x = sum(p[0] for p in points) / len(points)
+        y = sum(p[1] for p in points) / len(points)
+        return x, y
 
     def estimate(self, face_points: dict[int, tuple[int, int]]) -> XRotation | None:
-        if self._NOSE_TIP not in face_points or self._CHIN not in face_points:
+        left_pts = [face_points[i] for i in self._LEFT_EYE_INDICES if i in face_points]
+        right_pts = [face_points[i] for i in self._RIGHT_EYE_INDICES if i in face_points]
+
+        if len(left_pts) < 4 or len(right_pts) < 4:
             raise MissingLandmarksError
 
-        nose = face_points[self._NOSE_TIP]
-        chin = face_points[self._CHIN]
-        dx, dy = chin[0] - nose[0], chin[1] - nose[1]
+        left_center = self._center(left_pts)
+        right_center = self._center(right_pts)
+
+        dx = right_center[0] - left_center[0]
+        dy = right_center[1] - left_center[1]
         angle = math.degrees(math.atan2(dy, dx))
-        return XRotation(angle=angle - 90)
+        return XRotation(angle=angle)
 
 
 class SingleEyeEstimator(BaseEstimator[SingleEye]):

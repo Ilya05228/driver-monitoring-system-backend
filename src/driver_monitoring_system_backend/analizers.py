@@ -7,17 +7,17 @@ from dataclasses import dataclass
 class BufferConfig:
     """Настройки длины буферов для анализа."""
 
-    left_eye_len: int = 60
+    left_eye_len: int = 30
     right_eye_len: int = 30
-    head_angle_len: int = 15
-    center_len: int = 60
+    head_angle_len: int = 30
+    center_len: int = 30
 
 
 @dataclass(frozen=True)
 class SleepParams:
     """Параметры анализа сна и отвлечения."""
 
-    eyes_closed_threshold: float = 0.5
+    eyes_closed_threshold: float = 0.35
     head_tilt_angle_threshold: float = 5.0
     x_bounds: tuple[float, float] = (30, 70)
     y_bounds: tuple[float, float] = (30, 70)
