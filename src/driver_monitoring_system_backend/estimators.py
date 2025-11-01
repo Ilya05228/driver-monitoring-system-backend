@@ -8,12 +8,9 @@ from driver_monitoring_system_backend.outputs import (
     BothEyes,
     HeadCenter,
     HeadCenterRelative,
-    HeadRotation,
     Output,
     SingleEye,
     XRotation,
-    YRotation,
-    ZRotation,
 )
 
 T = typing.TypeVar("T", bound=Output)
@@ -49,58 +46,6 @@ class XRotationEstimator(BaseEstimator[XRotation]):
         dx, dy = chin[0] - nose[0], chin[1] - nose[1]
         angle = math.degrees(math.atan2(dy, dx))
         return XRotation(angle=angle - 90)
-
-
-class YRotationEstimator(BaseEstimator[YRotation]):
-    """Оценивает поворот головы по оси Y (влево/вправо)."""
-
-    _NOSE_TIP = 1
-    _CHIN = 152
-
-    def estimate(self, face_points: dict[int, tuple[int, int]]) -> YRotation | None:
-        if self._NOSE_TIP not in face_points or self._CHIN not in face_points:
-            raise MissingLandmarksError
-
-        nose = face_points[self._NOSE_TIP]
-        chin = face_points[self._CHIN]
-        dx, dy = chin[0] - nose[0], chin[1] - nose[1]
-        angle = math.degrees(math.atan2(-dx, dy))
-        return YRotation(angle=angle)
-
-
-class ZRotationEstimator(BaseEstimator[ZRotation]):
-    """Оценивает наклон головы по оси Z (наклон вбок)."""
-
-    _LEFT_EAR = 234
-    _RIGHT_EAR = 454
-
-    def estimate(self, face_points: dict[int, tuple[int, int]]) -> ZRotation | None:
-        if self._LEFT_EAR not in face_points or self._RIGHT_EAR not in face_points:
-            raise MissingLandmarksError
-
-        left_ear = face_points[self._LEFT_EAR]
-        right_ear = face_points[self._RIGHT_EAR]
-        dx, dy = right_ear[0] - left_ear[0], right_ear[1] - left_ear[1]
-        angle = math.degrees(math.atan2(dy, dx))
-        return ZRotation(angle=angle)
-
-
-class HeadRotationEstimator(BaseEstimator[HeadRotation]):
-    """Оценивает все три угла поворота головы (X, Y, Z)."""
-
-    def __init__(self) -> None:
-        self.x_est = XRotationEstimator()
-        self.y_est = YRotationEstimator()
-        self.z_est = ZRotationEstimator()
-
-    def estimate(self, face_points: dict[int, tuple[int, int]]) -> HeadRotation | None:
-        x = self.x_est.estimate(face_points)
-        y = self.y_est.estimate(face_points)
-        z = self.z_est.estimate(face_points)
-
-        if x and y and z:
-            return HeadRotation(x=x, y=y, z=z)
-        raise MissingLandmarksError
 
 
 class SingleEyeEstimator(BaseEstimator[SingleEye]):
