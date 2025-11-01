@@ -62,7 +62,7 @@ class SleepAnalyzer:
         eyes_closed = self._check_eyes_closed()
         head_tilted = self._check_head_tilted()
         head_outside = self._check_head_outside()
-        self._is_sleeping = sum([eyes_closed, head_tilted, head_outside]) >= self.params.sleep_condition_count
+        self._is_sleeping = sum([eyes_closed, head_tilted, head_outside]) >= self.params.sleep_condition_count or self._check_eyes_closed()
 
     def is_sleep(self) -> bool:
         """Возвращает текущее состояние сна."""
