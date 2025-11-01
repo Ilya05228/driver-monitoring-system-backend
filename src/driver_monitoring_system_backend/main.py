@@ -11,7 +11,7 @@ from driver_monitoring_system_backend.estimators import (
 from driver_monitoring_system_backend.face_detector import FaceLandmarkDetector
 
 
-def main() -> None:
+def main() -> None:  # noqa: C901, PLR0912, PLR0915
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Ошибка: не удалось открыть камеру")
@@ -28,9 +28,9 @@ def main() -> None:
     x_rot_est = XRotationEstimator()
     center_est = HeadCenterRelativeEstimator(w, h)
 
-    FACE_OVAL = HeadCenterEstimator._FACE_OVAL
-    LEFT_EYE = BothEyesEstimator._LEFT_EYE
-    RIGHT_EYE = BothEyesEstimator._RIGHT_EYE
+    FACE_OVAL = HeadCenterEstimator._FACE_OVAL  # noqa: N806, SLF001
+    LEFT_EYE = BothEyesEstimator._LEFT_EYE  # noqa: N806, SLF001
+    RIGHT_EYE = BothEyesEstimator._RIGHT_EYE  # noqa: N806, SLF001
 
     buf_len = 15
     left_eye_buf = collections.deque(maxlen=buf_len)
