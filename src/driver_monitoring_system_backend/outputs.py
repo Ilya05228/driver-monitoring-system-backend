@@ -68,9 +68,6 @@ class HeadRotation(Output):
         return f"HeadRotation(x={self.x.angle}, y={self.y.angle}, z={self.z.angle})"
 
 
-# ==================== КЛАССЫ ДЛЯ ГЛАЗ ====================
-
-
 class SingleEye(Output):
     """Хранит степень открытости одного глаза."""
 
@@ -121,3 +118,28 @@ class HeadCenter(Output):
 
     def __repr__(self) -> str:
         return f"HeadCenter(x={self.x}, y={self.y})"
+
+
+class HeadCenterRelative(HeadCenter):
+    """Расширяет HeadCenter: добавляет относительные координаты (в % от размеров кадра)."""
+
+    def __init__(self, x: int, y: int, x_rel: float | None = None, y_rel: float | None = None):
+        super().__init__(x, y)
+        self._x_rel = x_rel
+        self._y_rel = y_rel
+
+    @property
+    def x_rel(self) -> float | None:
+        """Относительная координата X (%)"""
+        return self._x_rel
+
+    @property
+    def y_rel(self) -> float | None:
+        """Относительная координата Y (%)"""
+        return self._y_rel
+
+    def __repr__(self) -> str:
+        base = super().__repr__()
+        if self._x_rel is not None and self._y_rel is not None:
+            return f"{base[:-1]}, x_rel={self.x_rel:.2f}%, y_rel={self.y_rel:.2f}%)"
+        return base

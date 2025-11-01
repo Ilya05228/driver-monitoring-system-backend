@@ -7,6 +7,7 @@ import numpy as np
 from driver_monitoring_system_backend.outputs import (
     BothEyes,
     HeadCenter,
+    HeadCenterRelative,
     HeadRotation,
     Output,
     SingleEye,
@@ -47,7 +48,7 @@ class XRotationEstimator(BaseEstimator[XRotation]):
         chin = face_points[self._CHIN]
         dx, dy = chin[0] - nose[0], chin[1] - nose[1]
         angle = math.degrees(math.atan2(dy, dx))
-        return XRotation(angle=angle)
+        return XRotation(angle=angle - 90)
 
 
 class YRotationEstimator(BaseEstimator[YRotation]):
@@ -191,3 +192,27 @@ class HeadCenterEstimator(BaseEstimator[HeadCenter]):
         if not xs or not ys:
             raise MissingLandmarksError
         return HeadCenter(x=int(np.mean(xs)), y=int(np.mean(ys)))
+
+
+class HeadCenterRelativeEstimator(BaseEstimator[HeadCenterRelative]):
+    """Определяет координаты центра головы по овалу лица и вычисляет проценты относительно кадра."""
+
+    _FACE_OVAL: typing.ClassVar[list[int]] = HeadCenterEstimator._FACE_OVAL  # noqa: SLF001
+
+    def __init__(self, frame_width: int, frame_height: int):
+        if frame_width <= 0 or frame_height <= 0:
+            raise ValueError("Ширина и высота кадра должны быть положительными числами")
+        self.frame_width = frame_width
+        self.frame_height = frame_height
+
+    def estimate(self, face_points: dict[int, tuple[int, int]]) -> HeadCenterRelative | None:
+        xs = [face_points[i][0] for i in self._FACE_OVAL if i in face_points]
+        ys = [face_points[i][1] for i in self._FACE_OVAL if i in face_points]
+
+        if not xs or not ys:
+            raise MissingLandmarksError("Нет необходимых точек для оценки центра головы")
+        x_px = int(np.mean(xs))
+        y_px = int(np.mean(ys))
+        x_rel = (x_px / self.frame_width) * 100
+        y_rel = (y_px / self.frame_height) * 100
+        return HeadCenterRelative(x=x_px, y=y_px, x_rel=x_rel, y_rel=y_rel)

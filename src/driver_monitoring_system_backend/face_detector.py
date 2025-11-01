@@ -27,9 +27,9 @@ class FaceLandmarkDetector:
         all_faces = []
         for face_landmarks in results.multi_face_landmarks:
             points = {}
-            for i, lm in enumerate(face_landmarks.landmark):  # проходим по всем точкам
+            for i, lm in enumerate(face_landmarks.landmark):
                 px, py = int(lm.x * w), int(lm.y * h)
                 points[i] = (px, py)
-                cv2.circle(frame, (px, py), 1, (0, 255, 0), -1)  # рисуем все точки
+                cv2.circle(frame, (px, py), 1, (0, 255, 0), -1)
             all_faces.append(points)
         return all_faces
