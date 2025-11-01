@@ -243,6 +243,10 @@ dependencies = [
     { name = "opencv-python" },
     { name = "pygame" },
     { name = "pyside6" },
+]
+
+[package.dev-dependencies]
+dev = [
     { name = "ruff" },
 ]
 
@@ -255,8 +259,10 @@ requires-dist = [
     { name = "opencv-python", specifier = ">=4.11.0.86" },
     { name = "pygame", specifier = ">=2.6.1" },
     { name = "pyside6", specifier = ">=6.10.0" },
-    { name = "ruff", specifier = ">=0.14.3" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ruff", specifier = ">=0.14.3" }]
 
 [[package]]
 name = "email-validator"
