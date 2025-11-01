@@ -1,0 +1,91 @@
+[project]
+name = "driver-monitoring-system-backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [{ name = "Ilya05228", email = "iliyaand05@gmail.com" }]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.119.0",
+    "flask>=3.1.2",
+    "mediapipe>=0.10.21",
+    "numpy>=1.26.4",
+    "opencv-python>=4.11.0.86",
+    "pygame>=2.6.1",
+    "pyside6>=6.10.0",
+    "ruff>=0.14.3",
+]
+
+[project.scripts]
+driver-monitoring-system-backend = "driver_monitoring_system_backend:main"
+main = "driver_monitoring_system_backend.main:main"
+
+[build-system]
+requires = ["uv_build>=0.8.15,<0.9.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+# no_extra_newlines = true
+line-length = 150
+fix = true
+# [tool.ruff.lint.pydocstyle]
+# convention = "google"  # Accepts: "google", "numpy", or "pep257".
+
+
+[tool.ruff.lint]
+select = ["ALL", "D", "EM"]
+# extend-safe-fixes = ["C408","EM"]
+# # exclude = ["*.ipynb"]
+
+ignore = [
+
+    "D101",
+    "D100",
+    "D103",
+    "ERA001",
+    "COM812",
+    "PLR2004",
+    "PGH004",
+    "UP046",
+    "D102",
+    "RUF003",
+    "FIX002",
+    "TD002",
+    "TD003",
+    "TD004",
+    "PLR0913",
+    "FBT001",
+    "FBT002",
+    "D107",
+    "ANN204",
+    "TC002",
+    "D400",
+    "D415",
+    "G004",
+    "TRY300",
+    "BLE001",
+    "RET504",
+    "EM101",
+    "TRY003",
+    "RUF002",
+    "RUF001",
+    "TRY401",
+    "EM102",
+    "ERA001",
+    "E741",
+    "T201",
+    "D105",
+] # Игнорировать ничего не будемselect = ["ALL"]  # Включенные правила
+fixable = ["ALL"] # Разрешаем исправлять все ошибки
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+# ignore-overlong-task-comments = true
+# [tool.ruff.lint.pycodestyle]
+
+[tool.ruff.format]
+quote-style = "double"            # Использовать двойные кавычки
+indent-style = "space"            # Пробелы вместо табов
+line-ending = "lf"                # Перенос строк в формате LF
+skip-magic-trailing-comma = false
+exclude = ["*.ipynb"]
